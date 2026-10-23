@@ -4,6 +4,7 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from fastapi.responses import JSONResponse
 
 
 app = FastAPI()
@@ -20,7 +21,7 @@ REQUESTS = Counter(
     "HTTP responses",
     labelnames=["pod", "datacenter", "handler", "status"],
 )
-SKIP = {"/health", "/metrics", "/docs", "/openapi.json", "/redoc"}
+SKIP = {"/health", "/metrics", "/docs", "/openapi.json", "/redoc", "/handlers", "/docs/oauth2-redirect"}
 
 items: dict[str, dict] = {}
 
@@ -61,6 +62,8 @@ def delete_item(item_id: str):
 async def collect_metrics(request: Request, call_next):
     started = time.perf_counter()
     response = await call_next(request)
+    if request.headers.get("x-force-status") == "500":
+      response = JSONResponse(status_code=500, content={"detail": "forced error"})
     route = request.scope.get("route")
     if route is None or route.path in SKIP:
         return response
@@ -74,8 +77,19 @@ async def collect_metrics(request: Request, call_next):
         status=str(response.status_code),
     ).inc()
     return response
-    
+
 @app.get("/metrics")
 def metrics():
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+@app.get("/handlers")
+def list_handlers():
+    found = []
+    for route in app.routes:
+        methods = getattr(route, "methods", None)
+        if not methods or route.path in SKIP or route.path == "/handlers":
+            continue
+        for method in sorted(methods - {"HEAD", "OPTIONS"}):
+            found.append(f"{method} {route.path}")
+    return found
 
