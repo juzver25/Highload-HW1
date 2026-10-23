@@ -70,3 +70,17 @@ services:
         condition: service_healthy
       grafana:
         condition: service_healthy
+
+  load:
+    image: items-service:1
+    environment:
+      APP_URLS: http://app-a:8000,http://app-b:8000
+    command: ["python", "load.py"]
+    restart: unless-stopped
+    depends_on:
+      app-a:
+        condition: service_healthy
+      app-b:
+        condition: service_healthy
+      dashboard:
+        condition: service_completed_successfully
