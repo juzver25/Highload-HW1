@@ -62,20 +62,9 @@ def delete_item(item_id: str):
 async def collect_metrics(request: Request, call_next):
     started = time.perf_counter()
     response = await call_next(request)
-    if request.headers.get("x-force-status") == "500":
-      response = JSONResponse(status_code=500, content={"detail": "forced error"})
-    route = request.scope.get("route")
-    if route is None or route.path in SKIP:
-        return response
-    handler = f"{request.method} {route.path}"
-    elapsed = time.perf_counter() - started
-    REQUEST_LATENCY.labels(pod=POD, datacenter=DATACENTER, handler=handler).observe(elapsed)
-    REQUESTS.labels(
-        pod=POD,
-        datacenter=DATACENTER,
-        handler=handler,
-        status=str(response.status_code),
-    ).inc()
+    forced = request.headers.get("x-force-status")
+    if forced in {"404", "500"}:
+        response = JSONResponse(status_code=int(forced), content={"detail": "forced error"})
     return response
 
 @app.get("/metrics")
