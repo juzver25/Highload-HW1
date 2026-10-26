@@ -40,21 +40,19 @@ def one_request(error_rate):
     base = random.choice(URLS)
     roll = random.random()
     if roll < error_rate:
-        status_code = "500"
-    else:
-        status_code = "404" if roll < error_rate / 2 else "200"
-    method = random.choice(["POST", "GET", "PUT"])
-    if method == "POST":
-        call("POST", f"{base}/items", {"name": "boom"}, status_code)
-    else:
-        body = {"name": "missing"} if method == "PUT" else None
-        call(method, f"{base}/items/missing-{random.randrange(1_000_000)}", body, status_code)
-    return
+        status_code = "404" if roll < error_rate / 2 else "500"
+        method = random.choice(["POST", "GET", "PUT"])
+        if method == "POST":
+            call("POST", f"{base}/items", {"name": "boom"}, status_code)
+        else:
+            body = {"name": "missing"} if method == "PUT" else None
+            call(method, f"{base}/items/missing-{random.randrange(1_000_000)}", body, status_code)
+        return
     kind = random.choice(["post", "get", "put", "delete"])
     known = ids[base]
     if kind == "post" or not known:
         status, raw = call("POST", f"{base}/items", {"name": "load"})
-        if status == 201 or status == 200:
+        if status in (200, 201):
             ids[base].append(json.loads(raw)["id"])
         return
     item_id = random.choice(known)

@@ -65,6 +65,18 @@ async def collect_metrics(request: Request, call_next):
     forced = request.headers.get("x-force-status")
     if forced in {"404", "500"}:
         response = JSONResponse(status_code=int(forced), content={"detail": "forced error"})
+    route = request.scope.get("route")
+    if route is None or route.path in SKIP:
+        return response
+    handler = f"{request.method} {route.path}"
+    elapsed = time.perf_counter() - started
+    REQUEST_LATENCY.labels(pod=POD, datacenter=DATACENTER, handler=handler).observe(elapsed)
+    REQUESTS.labels(
+        pod=POD,
+        datacenter=DATACENTER,
+        handler=handler,
+        status=str(response.status_code),
+    ).inc()
     return response
 
 @app.get("/metrics")
